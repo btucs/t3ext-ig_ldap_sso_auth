@@ -805,6 +805,9 @@ class ModuleController extends ActionController
             $ldapInstance = Ldap::getInstance();
             $ldapInstance->connect(Configuration::getLdapConfiguration());
             $ldapGroups = $ldapInstance->search($config['groups']['basedn'], $filter, $attributes);
+            while($ldapInstance->isPartialSearchResult()) {
+              $ldapGroups = array_merge($ldapGroups, $ldapInstance->search($config['groups']['basedn'], $filter, $attributes, false, 0, true));
+            }
             $ldapInstance->disconnect();
             unset($ldapGroups['count']);
         }
