@@ -248,7 +248,18 @@ class ModuleController extends ActionController
         $pageRenderer->loadRequireJsModule('TYPO3/CMS/IgLdapSsoAuth/Import');
 
         $users = $this->getAvailableUsers($configuration, 'be');
-        $this->view->assign('users', $users);
+        $uniqueUsers = array_filter($users, function($user) {
+          static $seen = [];
+          if (in_array($user['tx_igldapssoauth_dn'], $seen)) {
+              return false;
+          }
+          $seen[] = $user['tx_igldapssoauth_dn'];
+          return true;
+      });
+        usort($uniqueUsers, function($a, $b) {
+          return strnatcmp($a['tx_igldapssoauth_dn'], $b['tx_igldapssoauth_dn']);
+      });
+        $this->view->assign('users', $uniqueUsers);
     }
 
     /**
@@ -697,8 +708,42 @@ class ModuleController extends ActionController
             ? Configuration::getBackendConfiguration()
             : Configuration::getFrontendConfiguration();
 
+        $ldapAliasInstance;
+        if($config['users']['followAlias']) {
+          $ldapAliasInstance = Ldap::getInstance();
+          $ldapAliasInstance->connect(Configuration::getLdapConfiguration());
+        }
+
         do {
-            $numberOfUsers += count($ldapUsers);
+            $ldapUserCount = count($ldapUsers);
+
+            for($i = 0; $i < $ldapUserCount; $i++) {
+              if($config['users']['followAlias'] && in_array('alias', $ldapUsers[$i]['objectclass'])) {
+                $ldapAliasUser = $ldapAliasInstance->search(
+                  $ldapUsers[$i]['aliasedobjectname'][0],
+                  '(objectClass=person)',
+                  Configuration::getLdapAttributes($config['users']['mapping']),
+                  true
+                );
+
+                $ldapUsers[$i] = $ldapAliasUser;
+              }
+            }
+
+            $ldapUsers = array_filter($ldapUsers, function($user) {
+              static $seen = [];
+              if(count($user) === 0 || in_array($user['dn'], $seen)) {
+                return false;
+              } else {
+                $seen[] = $user['dn'];
+                return true;
+              }
+            });
+            // reindex array
+            $ldapUsers = array_values($ldapUsers);
+
+            $ldapUserCount = count($ldapUsers);
+            $numberOfUsers += $ldapUserCount;
             $typo3Users = $importUtility->fetchTypo3Users($ldapUsers);
             foreach ($ldapUsers as $index => $ldapUser) {
                 // Merge LDAP and TYPO3 information
