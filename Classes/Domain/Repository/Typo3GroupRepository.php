@@ -14,6 +14,7 @@
 
 namespace Causal\IgLdapSsoAuth\Domain\Repository;
 
+use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use Causal\IgLdapSsoAuth\Exception\InvalidUserGroupTableException;
@@ -173,15 +174,19 @@ class Typo3GroupRepository
             throw new InvalidUserGroupTableException('Invalid table "' . $table . '"', 1404891867);
         }
 
-        $affectedRows = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getConnectionForTable($table)
-            ->update(
-                $table,
-                $data,
-                [
-                    'uid' => (int)$data['uid'],
-                ]
-            );
+        $connection = GeneralUtility::makeInstance(ConnectionPool::class)
+            ->getConnectionForTable($table);
+        $affectedRows = $connection->update(
+            $table,
+            $data,
+            [
+                'uid' => (int)$data['uid'],
+            ],
+            [
+                Connection::PARAM_INT,
+            ]
+        );
+        // TODO: 0 affected rows is not necessarily an error
         $success = $affectedRows === 1;
 
         if ($success) {
