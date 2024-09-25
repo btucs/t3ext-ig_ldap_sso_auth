@@ -30,7 +30,7 @@ return [
                     --div--;FE_GROUPS,
                         fe_groups_basedn, fe_groups_filter, fe_groups_mapping,
                     --div--;BE_USERS,
-                        be_users_basedn, be_users_filter, be_users_mapping, be_groups_required, be_groups_assigned,
+                        be_users_basedn, be_users_filter, be_users_import_basedn, be_users_import_filter, be_users_follow_alias, be_users_mapping, be_groups_required, be_groups_assigned,
                     --div--;BE_GROUPS,
                         be_groups_basedn, be_groups_filter, be_groups_mapping, be_groups_admin'
         ],
@@ -250,6 +250,39 @@ return [
                 'cols' => 30,
                 'eval' => 'trim',
             ]
+        ],
+        'be_users_import_basedn' => [
+            'exclude' => 1,
+            'label' => 'LLL:EXT:ig_ldap_sso_auth/Resources/Private/Language/locallang_db.xlf:tx_igldapssoauth_config.be_users_import_basedn',
+            'config' => [
+                'type' => 'input',
+                'size' => '30',
+                'eval' => 'trim',
+            ]
+        ],
+        'be_users_import_filter' => [
+            'exclude' => 1,
+            'label' => 'LLL:EXT:ig_ldap_sso_auth/Resources/Private/Language/locallang_db.xlf:tx_igldapssoauth_config.be_users_import_filter',
+            'config' => [
+                'type' => 'text',
+                'rows' => 3,
+                'cols' => 30,
+                'eval' => 'trim',
+            ]
+        ],
+        'be_users_follow_alias' => [
+            'exclude' => 1,
+            'label' => 'LLL:EXT:ig_ldap_sso_auth/Resources/Private/Language/locallang_db.xlf:tx_igldapssoauth_config.be_users_follow_alias',
+            'config' => [
+                'type' => 'check',
+                'renderType' => 'checkboxToggle',
+                'items' => [
+                    [
+                        0 => '',
+                        1 => '',
+                    ]
+                ],
+            ],
         ],
         'be_users_mapping' => [
             'exclude' => 1,

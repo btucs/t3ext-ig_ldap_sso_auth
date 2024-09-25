@@ -185,6 +185,21 @@ class Configuration
     protected $frontendGroupsAssigned;
 
     /**
+     * @var string
+     */
+    protected $backendUsersImportBaseDn;
+
+    /**
+     * @var string
+     */
+    protected $backendUsersImportFilter;
+
+    /**
+     * @var bool
+     */
+    protected $backendUsersFollowAlias;
+
+    /**
      * Getter for uid.
      *
      * @return int|null the uid or null if none set yet.
@@ -485,6 +500,21 @@ class Configuration
     public function getFrontendGroupsAssigned(): array
     {
         return $this->frontendGroupsAssigned;
+    }
+
+    public function getBackendUsersImportBaseDn(): ?string
+    {
+        return $this->backendUsersImportBaseDn;
+    }
+
+    public function getBackendUsersImportFilter(): ?string
+    {
+        return $this->backendUsersImportFilter;
+    }
+
+    public function getBackendUsersFollowAlias(): ?bool
+    {
+        return $this->backendUsersFollowAlias;
     }
 
     /**

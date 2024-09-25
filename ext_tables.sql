@@ -42,6 +42,9 @@ CREATE TABLE tx_igldapssoauth_config (
 	fe_groups_required text,
 	fe_groups_assigned text,
 	sorting int(11) unsigned DEFAULT '0' NOT NULL,
+  be_users_follow_alias tinyint(4) DEFAULT '0' NOT NULL,
+  be_users_import_basedn varchar(255) DEFAULT '' NOT NULL,
+  be_users_import_filter text,
 
 	PRIMARY KEY (uid),
 	KEY parent (pid)

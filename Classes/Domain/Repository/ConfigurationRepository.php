@@ -167,6 +167,10 @@ class ConfigurationRepository
             'fe_groups_basedn' => 'frontendGroupsBaseDn',
             'fe_groups_filter' => 'frontendGroupsFilter',
             'fe_groups_mapping' => 'frontendGroupsMapping',
+
+            'be_users_import_basedn' => 'backendUsersImportBaseDn',
+            'be_users_import_filter' => 'backendUsersImportFilter',
+            'be_users_follow_alias' => 'backendUsersFollowAlias',
         ];
 
         foreach ($mapping as $fieldName => $propertyName) {

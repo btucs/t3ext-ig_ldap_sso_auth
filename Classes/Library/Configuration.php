@@ -110,6 +110,10 @@ class Configuration
         static::$be['groups']['filter'] = $configuration->getBackendGroupsFilter();
         static::$be['groups']['mapping'] = static::makeGroupMapping($configuration->getBackendGroupsMapping());
 
+        static::$be['users']['importBasedn'] = $configuration->getBackendUsersImportBaseDn();
+        static::$be['users']['importFilter'] = $configuration->getBackendUsersImportFilter();
+        static::$be['users']['followAlias'] = $configuration->getBackendUsersFollowAlias();
+
         static::$fe['LDAPAuthentication'] = (bool)$globalConfiguration['enableFELDAPAuthentication'];
         static::$fe['SSOAuthentication'] = (bool)$globalConfiguration['enableFESSO'];
         static::$fe['SSOKeepDomainName'] = (bool)$globalConfiguration['keepFESSODomainName'];
