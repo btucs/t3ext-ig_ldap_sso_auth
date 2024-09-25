@@ -358,14 +358,12 @@ class Authentication
         } else {
             // Get pid from group mapping
             $typo3GroupPid = Configuration::getPid($configuration['groups']['mapping']);
-            $contentObj = static::initialiseContentObjectRenderer(0);
-
+            $ldapGroups = static::processLdapGroups($ldapGroups, $configuration['groups']['mapping']);
             $typo3GroupsTemp = static::getOrCreateTypo3Groups(
                 $ldapGroups,
                 $groupTable,
                 $typo3GroupPid,
                 $configuration['groups']['mapping'],
-                $contentObj
             );
 
             if (!empty($requiredLDAPGroups)) {
@@ -570,8 +568,7 @@ class Authentication
         array $ldapGroups = [],
         ?string $table = null,
         ?int $pid = null,
-        array $mapping = [],
-        ContentObjectRenderer $contentObj = null
+        array $mapping = []
     ): array
     {
         if (empty($ldapGroups)) {
@@ -582,7 +579,6 @@ class Authentication
         $typo3Groups = [];
 
         foreach ($ldapGroups as $ldapGroup) {
-            $ldapGroup = static::processTypoScript($contentObj, $mapping, $ldapGroup);
             $groupName = $ldapGroup['__extraData']['title'] ?? null;
 
             $existingTypo3Groups = Typo3GroupRepository::fetch($table, 0, $pid, $ldapGroup['dn'], $groupName);
@@ -715,6 +711,26 @@ class Authentication
         return $out;
     }
 
+    public static function processLdapGroups($ldapGroups, $mapping = []) {
+      $contentObj = Authentication::initialiseContentObjectRenderer();
+      $ldapGroupsCount = count($ldapGroups);
+      for($i = 0; $i < $ldapGroupsCount; $i++) {
+          $ldapGroup = $ldapGroups[$i];
+          $ldapGroups[$i] = Authentication::processTypoScript($contentObj, $mapping, $ldapGroup);
+      }
+
+      $ldapGroups = array_filter($ldapGroups, function($ldapGroup) {
+        static $seen = [];
+        if(in_array($ldapGroup['__extraData']['tx_igldapssoauth_dn'], $seen)) {
+          return false;
+        }
+        $seen[] = $ldapGroup['__extraData']['tx_igldapssoauth_dn'];
+        return true;
+      });
+
+      return array_values($ldapGroups);
+    }
+
     public static function processTypoScript($contentObj, $typoScript = [], $data = []) {
 
       $out = $data;
@@ -738,7 +754,9 @@ class Authentication
         }
         unset($flattenedData['count']);
 
-        $contentObj = static::initialiseContentObjectRenderer($out['pid'] ?? 0);
+        if($contentObj === null) {
+          $contentObj = static::initialiseContentObjectRenderer($out['pid'] ?? 0);
+        }
         $contentObj->start($flattenedData, '');
 
         // Process every TypoScript definition
