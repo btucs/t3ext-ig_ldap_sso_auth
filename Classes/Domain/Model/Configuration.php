@@ -681,7 +681,7 @@ class Configuration
 
     public function getBackendUsersFollowAlias(): ?bool
     {
-        return $this->backendUsersFollowAlias;
+        return (bool)$this->backendUsersFollowAlias;
     }
 
     /**
