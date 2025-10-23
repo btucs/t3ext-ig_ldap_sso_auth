@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -12,12 +14,15 @@
  * The TYPO3 project - inspiring people to share!
  */
 
-namespace Causal\IgLdapSsoAuth\Form\Element;
+namespace Causal\IgLdapSsoAuth\Backend\Form\Element;
 
 use Causal\IgLdapSsoAuth\Library\Configuration;
+use TYPO3\CMS\Backend\Form\AbstractNode;
 use TYPO3\CMS\Backend\Form\Element\AbstractFormElement;
 use TYPO3\CMS\Backend\Form\Element\InputTextElement;
 use TYPO3\CMS\Backend\Form\Element\TextElement;
+use TYPO3\CMS\Core\Page\JavaScriptModuleInstruction;
+use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -39,13 +44,22 @@ class LdapSuggestElement extends AbstractFormElement
         $elementType = $this->data['parameterArray']['fieldConf']['config']['type'];
         switch ($elementType) {
             case 'input':
-                $baseElement = GeneralUtility::makeInstance(InputTextElement::class, $this->nodeFactory, $this->data);
+                $baseElementClass = InputTextElement::class;
                 break;
             case 'text':
-                $baseElement = GeneralUtility::makeInstance(TextElement::class, $this->nodeFactory, $this->data);
+                $baseElementClass = TextElement::class;
                 break;
             default:
                 throw new \RuntimeException('Suggest wizard is not configured for type "' . $elementType . '"', 1553522818);
+        }
+
+        $typo3Version = (new \TYPO3\CMS\Core\Information\Typo3Version())->getMajorVersion();
+        if ($typo3Version >= 13) {
+            /** @var AbstractNode $baseElement */
+            $baseElement = GeneralUtility::makeInstance($baseElementClass);
+            $baseElement->setData($this->data);
+        } else {
+            $baseElement = GeneralUtility::makeInstance($baseElementClass, $this->nodeFactory, $this->data);
         }
 
         $resultArray = $baseElement->render();
@@ -54,7 +68,7 @@ class LdapSuggestElement extends AbstractFormElement
             ? (int)$this->data['databaseRow']['ldap_server'][0]
             : Configuration::SERVER_OPENLDAP;
 
-        if (substr($this->data['fieldName'], -7) === '_basedn') {
+        if (str_ends_with($this->data['fieldName'], '_basedn')) {
             $suggestion = $this->suggestBaseDn();
         } else {
             $suggestion = $this->suggestMappingOrFilter($serverType);
@@ -63,9 +77,19 @@ class LdapSuggestElement extends AbstractFormElement
         if (!empty($suggestion)) {
             $suggestId = 'tx_igldapssoauth_suggest_' . $this->data['fieldName'];
 
+            if ($typo3Version >= 12) {
+                /** @var PageRenderer $pageRenderer */
+                $pageRenderer = GeneralUtility::makeInstance(PageRenderer::class);
+                $pageRenderer->getJavaScriptRenderer()->addJavaScriptModuleInstruction(
+                    JavaScriptModuleInstruction::create('@causal/ig-ldap-sso-auth/suggest.js')
+                        ->instance([
+                            'suggestId' => $suggestId,
+                            'fieldName' => 'data' . $this->data['elementBaseName'],
+                        ])
+                );
+            }
+
             $out[] = '<div style="margin:1em 0 0 1em; font-size:11px;">';
-            $fieldJs = '$("[data-formengine-input-name=\'data' . $this->data['elementBaseName'] . '\'").first()';
-            $onclick = "var node=document.getElementById('$suggestId');$fieldJs.val(node.innerText || node.textContent);$fieldJs.trigger('change');";
             $out[] = '<strong>' . htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:ig_ldap_sso_auth/Resources/Private/Language/locallang_db.xlf:suggestion.server.' . $serverType)) . '</strong>';
 
             $out[] = '<pre style="margin:1em 0;" id="' . $suggestId . '">';
@@ -75,9 +99,18 @@ class LdapSuggestElement extends AbstractFormElement
             $out[] = $suggestion . '</pre>';
 
             // Prepare the "copy" button
-            $button = '<input type="button" value="' . htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:ig_ldap_sso_auth/Resources/Private/Language/locallang_db.xlf:suggestion.copy')) . '" onclick="' . htmlspecialchars($onclick) . '" class="btn btn-default btn-sm" />';
-            $out[] = $button;
+            if ($typo3Version >= 12) {
+                $button = '<button id="' . $suggestId . '_btn" class="btn btn-default btn-sm">';
+            } else {
+                $fieldJs = '$("[data-formengine-input-name=\'data' . $this->data['elementBaseName'] . '\'").first()';
+                $onclick = "var node=document.getElementById('$suggestId');$fieldJs.val(node.innerText || node.textContent);$fieldJs.trigger('change');return false;";
+                $button = '<button class="btn btn-default btn-sm" onclick="' . htmlspecialchars($onclick) . '">';
+            }
 
+            $button .= htmlspecialchars($this->getLanguageService()->sL('LLL:EXT:ig_ldap_sso_auth/Resources/Private/Language/locallang_db.xlf:suggestion.copy'));
+            $button .= '</button>';
+
+            $out[] = $button;
             $out[] = '</div>';
 
             $suggestion = implode(LF, $out);
@@ -109,7 +142,7 @@ class LdapSuggestElement extends AbstractFormElement
      */
     protected function suggestMappingOrFilter(int $serverType): string
     {
-        if (substr($this->data['fieldName'], -8) === '_mapping') {
+        if (str_ends_with($this->data['fieldName'], '_mapping')) {
             $prefix = 'mapping_';
             $table = substr($this->data['fieldName'], 0, -8);
         } else {

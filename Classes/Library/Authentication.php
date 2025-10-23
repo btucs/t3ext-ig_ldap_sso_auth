@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -15,12 +17,14 @@
 namespace Causal\IgLdapSsoAuth\Library;
 
 use Causal\IgLdapSsoAuth\Domain\Repository\ConfigurationRepository;
+use Causal\IgLdapSsoAuth\Event\AfterComputeUserGroupsEvent;
 use Causal\IgLdapSsoAuth\Service\AuthenticationService;
 use Causal\IgLdapSsoAuth\Utility\CompatUtility;
+use Causal\IgLdapSsoAuth\Utility\NotificationUtility;
 use Psr\Log\LoggerInterface;
+use TYPO3\CMS\Core\Context\Context;
 use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
-use TYPO3\CMS\Core\Information\Typo3Version;
 use TYPO3\CMS\Core\Log\LogManager;
 use TYPO3\CMS\Core\Routing\PageArguments;
 use TYPO3\CMS\Core\TypoScript\TemplateService;
@@ -92,7 +96,11 @@ class Authentication
      * @return bool|array true or array of user info on success, otherwise false
      * @throws \Causal\IgLdapSsoAuth\Exception\UnresolvedPhpDependencyException when LDAP extension for PHP is not available
      */
-    public static function ldapAuthenticate(string $username, ?string $password = null, ?string $domain = null)
+    public static function ldapAuthenticate(
+        string $username,
+        #[\SensitiveParameter] ?string $password = null,
+        ?string $domain = null
+    )
     {
         static::$lastAuthenticationDiagnostic = '';
 
@@ -114,7 +122,7 @@ class Authentication
             );
             if (!empty($domain) && $numberOfConfigurationRecords > 1) {
                 // Domain is set, so check it
-                if (strpos($domain, '.') !== false) {
+                if (str_contains($domain, '.')) {
                     $domain = 'DC=' . implode(',DC=', explode('.', $domain));
                 }
                 $domain = strtolower($domain);
@@ -153,6 +161,8 @@ class Authentication
             return false;
         }
 
+        // Get diagnostic if authentication failed because host was not reachable
+        static::$lastAuthenticationDiagnostic = $ldapInstance->getLastBindDiagnostic();
         // LDAP authentication failed.
         static::getLogger()->warning('Cannot connect to LDAP or username is empty', ['username' => $username]);
         $ldapInstance->disconnect();
@@ -301,7 +311,7 @@ class Authentication
             $attributes = [];
         } else {
             $attributes = Configuration::getLdapAttributes(static::$config['users']['mapping']);
-            if (strpos(static::$config['groups']['filter'], '{USERUID}') !== false) {
+            if (str_contains(static::$config['groups']['filter'], '{USERUID}')) {
                 $attributes[] = 'uid';
                 $attributes = array_unique($attributes);
             }
@@ -333,7 +343,7 @@ class Authentication
      * @return array|null Array of groups or null if required LDAP groups are missing
      * @throws \Causal\IgLdapSsoAuth\Exception\InvalidUserGroupTableException
      */
-    public static function getOrCreateUserGroups(array $ldapUser, array $configuration = null, string $groupTable = ''): ?array
+    public static function getOrCreateUserGroups(array $ldapUser, ?array $configuration = null, string $groupTable = ''): ?array
     {
         if ($configuration === null) {
             $configuration = static::$config;
@@ -348,7 +358,7 @@ class Authentication
         $ldapGroups = static::getLdapGroups($ldapUser);
         unset($ldapGroups['count']);
 
-        /** @var \TYPO3\CMS\Extbase\Domain\Model\BackendUserGroup[]|\TYPO3\CMS\Extbase\Domain\Model\FrontendUserGroup[] $requiredLDAPGroups */
+        /** @var \Causal\IgLdapSsoAuth\Domain\Model\BackendUserGroup[]|\Causal\IgLdapSsoAuth\Domain\Model\FrontendUserGroup[] $requiredLDAPGroups */
         $requiredLDAPGroups = Configuration::getValue('requiredLDAPGroups');
 
         if (empty($ldapGroups)) {
@@ -431,9 +441,24 @@ class Authentication
                 $i++;
             }
         }
+
+        $event = NotificationUtility::dispatch(new AfterComputeUserGroupsEvent(
+            $ldapUser,
+            $configuration,
+            $groupTable,
+            $typo3_groups
+        ));
+        $typo3_groups = $event->getTypo3Groups();
+
         // Hook for processing the groups
         if (is_array($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['ig_ldap_sso_auth']['getGroupsProcessing'] ?? null)) {
             foreach ($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['ig_ldap_sso_auth']['getGroupsProcessing'] as $className) {
+                trigger_error(
+                    'Hook getGroupsProcessing is deprecated since version 4.1. Please migrate '
+                    . $className . ' to listen to the PSR-14 event "AfterComputeUserGroupsEvent".',
+                    E_USER_DEPRECATED
+                );
+
                 /** @var $postProcessor \Causal\IgLdapSsoAuth\Utility\GetGroupsProcessorInterface */
                 $postProcessor = GeneralUtility::makeInstance($className);
                 if ($postProcessor instanceof \Causal\IgLdapSsoAuth\Utility\GetGroupsProcessorInterface) {
@@ -462,8 +487,12 @@ class Authentication
         $ldapGroupAttributes = Configuration::getLdapAttributes(static::$config['groups']['mapping']);
         $ldapGroups = ['count' => 0];
 
-        $ldapInstance = Ldap::getInstance();
-        $ldapInstance->connect(Configuration::getLdapConfiguration());
+        $ldapConfiguration = Configuration::getLdapConfiguration();
+        $instanceIdentifier = md5(serialize($ldapConfiguration));
+        $ldapInstance = Ldap::getInstance($instanceIdentifier);
+        if (!$ldapInstance->isConnected()) {
+            $ldapInstance->connect($ldapConfiguration);
+        }
 
         if (Configuration::getValue('evaluateGroupsFromMembership')) {
             // Get LDAP groups from membership attribute
@@ -493,8 +522,6 @@ class Authentication
                 $ldapInstance
             );
         }
-
-        $ldapInstance->disconnect();
 
         static::getLogger()->debug(sprintf('Retrieving LDAP groups for user "%s"', $ldapUser['dn']), $ldapGroups);
 
@@ -539,12 +566,11 @@ class Authentication
 
             // We want to return only first user in any case, if more than one are returned (e.g.,
             // same username/DN twice) actual authentication will fail anyway later on
-            $user = is_array($typo3_users[0]) ? $typo3_users[0] : null;
+            $user = is_array($typo3_users[0] ?? null) ? $typo3_users[0] : null;
         } elseif (!Configuration::getValue('IfUserExist')) {
             $user = Typo3UserRepository::create(static::$authenticationService->authInfo['db_user']['table']);
 
             $user['pid'] = (int)$pid;
-            $user['cruser_id'] = static::getCreationUserId();
             $user['crdate'] = $GLOBALS['EXEC_TIME'];
             $user['tstamp'] = $GLOBALS['EXEC_TIME'];
             $user['username'] = $username;
@@ -588,7 +614,6 @@ class Authentication
             } else {
                 $typo3Group = Typo3GroupRepository::create($table);
                 $typo3Group['pid'] = (int)$pid;
-                $typo3Group['cruser_id'] = static::getCreationUserId();
                 $typo3Group['crdate'] = $GLOBALS['EXEC_TIME'];
                 $typo3Group['tstamp'] = $GLOBALS['EXEC_TIME'];
             }
@@ -635,7 +660,6 @@ class Authentication
             } else {
                 $typo3User = Typo3UserRepository::create($table);
                 $typo3User['pid'] = (int)$pid;
-                $user['cruser_id'] = static::getCreationUserId();
                 $typo3User['crdate'] = $GLOBALS['EXEC_TIME'];
                 $typo3User['tstamp'] = $GLOBALS['EXEC_TIME'];
             }
@@ -653,6 +677,7 @@ class Authentication
      * @param array $typo3
      * @param array $mapping Parsed mapping definition
      * @param bool $reportErrors
+     * @param string $disableField
      * @return array
      * @see \Causal\IgLdapSsoAuth\Library\Configuration::parseMapping()
      */
@@ -660,7 +685,8 @@ class Authentication
         array $ldap = [],
         array $typo3 = [],
         array $mapping = [],
-        bool $reportErrors = false
+        bool $reportErrors = false,
+        string $disableField = ''
     ): array
     {
         $out = $typo3;
@@ -668,10 +694,13 @@ class Authentication
 
         // Process every field (except "usergroup" and "parentGroup") which is not a TypoScript definition
         foreach ($mapping as $field => $value) {
-            if (substr($field, -1) !== '.') {
+            if (!str_ends_with($field, '.')) {
                 if ($field !== 'usergroup' && $field !== 'parentGroup') {
                     try {
-                        $out = static::mergeSimple($ldap, $out, $field, $value);
+                        $out = static::mergeSimple($ldap, $out, $field, (string)$value);
+                        if ($field === $disableField) {
+                            $out['__' . $disableField] = $out[$disableField];
+                        }
                     } catch (\UnexpectedValueException $uve) {
                         if ($reportErrors) {
                             $out['__errors'][] = $uve->getMessage();
@@ -786,21 +815,15 @@ class Authentication
       }
 
       // Context is a singleton, so we can get the current Context by instantiation
-      $currentContext = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Context\Context::class);
+            $currentContext = GeneralUtility::makeInstance(Context::class);
 
-      $typoBranch = (new Typo3Version())->getBranch();
-      if (version_compare($typoBranch, '11.5', '>=')) {
-          $pageArguments = GeneralUtility::makeInstance(
-              PageArguments::class,
-              $pageId,
-              PageRepository::DOKTYPE_SYSFOLDER,
-              []
-          );
-          $frontendUserAuthentication = GeneralUtility::makeInstance(FrontendUserAuthentication::class);
-      } else {
-          $pageArguments = null;
-          $frontendUserAuthentication = null;
-      }
+            $pageArguments = GeneralUtility::makeInstance(
+                PageArguments::class,
+                $pageId,
+                (string)PageRepository::DOKTYPE_SYSFOLDER,
+                []
+            );
+            $frontendUserAuthentication = GeneralUtility::makeInstance(FrontendUserAuthentication::class);
 
       // Use Site & Context to instantiate TSFE properly for TYPO3 v10+
       $frontendController = GeneralUtility::makeInstance(
@@ -812,17 +835,23 @@ class Authentication
           $frontendUserAuthentication
       );
 
+            // @todo Is this necessary?
+            /*
       // initTemplate() has been removed. The deprecation notice suggests setting the property directly
       $frontendController->tmpl = GeneralUtility::makeInstance(
           TemplateService::class,
           $currentContext
       );
+            */
 
       /** @var $contentObj ContentObjectRenderer */
       $contentObj = GeneralUtility::makeInstance(ContentObjectRenderer::class, $frontendController);
 
       return $contentObj;
-    }
+                if ($field === $disableField) {
+                    $out['__' . $disableField] = $out[$disableField];
+                }
+            }
 
     /**
      * Merges a field from LDAP into a TYPO3 record.
@@ -955,15 +984,6 @@ class Authentication
     }
 
     /**
-     * @return int
-     */
-    protected static function getCreationUserId(): int
-    {
-        $cruserId = (CompatUtility::getTypo3Mode() === 'BE' ? ($GLOBALS['BE_USER']->user['uid'] ?? null) : null);
-        return $cruserId ?? 0;
-    }
-
-    /**
      * @return string
      */
     protected static function getGroupTable(): string
@@ -971,7 +991,7 @@ class Authentication
         if (isset(static::$authenticationService) && !empty(static::$authenticationService->authInfo['db_groups']['table'])) {
             $groupTable = static::$authenticationService->authInfo['db_groups']['table'];
         } else {
-            if (CompatUtility::getTypo3Mode() === 'BE') {
+            if (CompatUtility::getTypo3Mode(static::$authenticationService->authInfo['loginType']) === 'BE') {
                 $groupTable = 'be_groups';
             } else {
                 $groupTable = 'fe_groups';

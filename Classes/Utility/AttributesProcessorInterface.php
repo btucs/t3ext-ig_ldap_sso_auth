@@ -20,6 +20,7 @@ namespace Causal\IgLdapSsoAuth\Utility;
  * @author     Xavier Perseguers <xavier@causal.ch>
  * @package    TYPO3
  * @subpackage ig_ldap_sso_auth
+ * @deprecated since version 4.1.0. Migrate your code to listen to the PSR-14 event instead.
  */
 interface AttributesProcessorInterface
 {
@@ -29,7 +30,6 @@ interface AttributesProcessorInterface
      * @param resource $link LDAP link from ldap_connect()
      * @param resource $entry LDAP entry from ldap_first_entry() or ldap_next_entry()
      * @param array $attributes LDAP attributes
-     * @return void
      */
-    public function processAttributes($link, $entry, array &$attributes);
+    public function processAttributes($link, $entry, array &$attributes): void;
 }

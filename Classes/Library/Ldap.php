@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -15,6 +17,7 @@
 namespace Causal\IgLdapSsoAuth\Library;
 
 use Psr\Log\LoggerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
 use TYPO3\CMS\Core\Log\LogManager;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use Causal\IgLdapSsoAuth\Utility\LdapUtility;
@@ -27,40 +30,44 @@ use Causal\IgLdapSsoAuth\Utility\LdapUtility;
  * @package       TYPO3
  * @subpackage    ig_ldap_sso_auth
  */
+#[Autoconfigure(shared: false)]
 class Ldap
 {
+    private static array $instances = [];
+
     /**
      * @var string
      */
     protected $lastBindDiagnostic = '';
 
-    /**
-     * @var LdapUtility
-     */
-    protected $ldapUtility;
-
-    /**
-     * @param LdapUtility $ldapUtility
-     */
-    public function injectLdapUtility(LdapUtility $ldapUtility): void
+    public function __construct(
+        protected readonly LdapUtility $ldapUtility
+    )
     {
-        $this->ldapUtility = $ldapUtility;
+    }
+
+    function __destruct() {
+        $this->disconnectAll();
     }
 
     /**
      * Returns an instance of this class.
      *
      * @return Ldap
-     * @throws \TYPO3\CMS\Extbase\Object\Exception
      */
-    public static function getInstance(): self
+    public static function getInstance(?string $identifier = null): self
     {
-        /** @var \TYPO3\CMS\Extbase\Object\ObjectManager $objectManager */
-        static $objectManager = null;
-        if ($objectManager === null) {
-            $objectManager = \TYPO3\CMS\Core\Utility\GeneralUtility::makeInstance(\TYPO3\CMS\Extbase\Object\ObjectManager::class);
+        if ($identifier !== null && isset(static::$instances[$identifier])) {
+            return static::$instances[$identifier];
         }
-        return $objectManager->get(__CLASS__);
+
+        $instance = GeneralUtility::makeInstance(__CLASS__);
+
+        if ($identifier !== null) {
+            static::$instances[$identifier] = $instance;
+    }
+
+        return $instance;
     }
 
     /**
@@ -80,6 +87,7 @@ class Ldap
             'tls' => $config['tls'],
             'tlsReqcert' => $config['tlsReqcert'],
             'ssl' => $config['ssl'],
+            'timeout' => $config['timeout'],
         ];
         // Connect to ldap server.
         if (!$this->ldapUtility->connect(
@@ -87,10 +95,11 @@ class Ldap
             $config['port'],
             3,
             $config['charset'],
-            $config['server'],
-            $config['tls'],
-            $config['ssl'],
-            $config['tlsReqcert']
+            Configuration::getServerType((int)$config['server']),
+            (bool)$config['tls'],
+            (bool)$config['ssl'],
+            (bool)$config['tlsReqcert'],
+            (int)$config['timeout'],
         )) {
             static::getLogger()->error( 'Cannot connect', $debugConfiguration);
             return false;
@@ -103,6 +112,10 @@ class Ldap
         if (!$this->ldapUtility->bind($config['binddn'], $config['password'])) {
             $status = $this->ldapUtility->getStatus();
             $this->lastBindDiagnostic = $status['bind']['diagnostic'];
+
+            if (!$this->lastBindDiagnostic) {
+                $this->lastBindDiagnostic = $status['bind']['status'];
+            }
 
             $message = 'Cannot bind to LDAP';
             if (!empty($this->lastBindDiagnostic)) {
@@ -130,6 +143,22 @@ class Ldap
         $this->ldapUtility->disconnect();
     }
 
+    public function disconnectAll(): void
+    {
+        $this->disconnect();
+        foreach (static::$instances as $instance) {
+            $instance->disconnect();
+        }
+    }
+
+    /**
+     * @return bool
+     */
+    public function isConnected(): bool
+    {
+        return $this->ldapUtility->isConnected();
+    }
+
     /**
      * Returns the corresponding DN if a given user is provided, otherwise false.
      *
@@ -141,7 +170,7 @@ class Ldap
      */
     public function validateUser(
         ?string $username = null,
-        ?string $password = null,
+        #[\SensitiveParameter] ?string $password = null,
         ?string $baseDn = null,
         ?string $filter = null
     )

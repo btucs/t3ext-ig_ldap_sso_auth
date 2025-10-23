@@ -20,6 +20,7 @@ namespace Causal\IgLdapSsoAuth\Utility;
  * @author     Francois Suter <typo3@cobweb.ch>
  * @package    TYPO3
  * @subpackage ig_ldap_sso_auth
+ * @deprecated since version 4.1.0. Migrate your code to listen to the PSR-14 events instead.
  */
 interface ExtraDataProcessorInterface
 {
@@ -28,7 +29,6 @@ interface ExtraDataProcessorInterface
      *
      * @param string $table Name of the table into which the user was imported
      * @param array $user User record with merged TYPO3/LDAP data
-     * @return void
      */
-    public function processExtraData(string $table, array $user);
+    public function processExtraData(string $table, array $user): void;
 }

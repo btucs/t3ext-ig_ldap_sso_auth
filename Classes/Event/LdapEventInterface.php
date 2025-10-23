@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -12,16 +14,11 @@
  * The TYPO3 project - inspiring people to share!
  */
 
-namespace Causal\IgLdapSsoAuth\Exception;
+namespace Causal\IgLdapSsoAuth\Event;
 
 /**
- * An exception when an unusupported login security level is
- * detected in either $GLOBALS['TYPO3_CONF_VARS']['BE']['loginSecurityLevel']
- * or $GLOBALS['TYPO3_CONF_VARS']['FE']['loginSecurityLevel'].
- *
- * @author Xavier Perseguers <xavier@causal.ch>
+ * Interface for LDAP events (just for type hinting)
  */
-class UnsupportedLoginSecurityLevelException extends IgLdapSsoAuthException
+interface LdapEventInterface
 {
-
 }

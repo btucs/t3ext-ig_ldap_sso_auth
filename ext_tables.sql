@@ -7,12 +7,10 @@ CREATE TABLE tx_igldapssoauth_config (
 
 	tstamp int(11) DEFAULT '0' NOT NULL,
 	crdate int(11) DEFAULT '0' NOT NULL,
-	cruser_id int(11) DEFAULT '0' NOT NULL,
 	deleted tinyint(4) DEFAULT '0' NOT NULL,
 	hidden tinyint(4) DEFAULT '0' NOT NULL,
 
 	name varchar(255) DEFAULT '' NOT NULL,
-	domains text NOT NULL,
 	sites text NOT NULL,
 	ldap_server int(11) DEFAULT '0' NOT NULL,
 	ldap_charset varchar(255) DEFAULT '' NOT NULL,
@@ -21,6 +19,7 @@ CREATE TABLE tx_igldapssoauth_config (
 	ldap_tls tinyint(4) DEFAULT '0' NOT NULL,
 	ldap_tls_reqcert  tinyint(4) DEFAULT '1' NOT NULL,
 	ldap_ssl tinyint(4) DEFAULT '0' NOT NULL,
+	ldap_timeout int(11) DEFAULT '0' NOT NULL,
 	ldap_binddn tinytext NOT NULL,
 	ldap_password varchar(255) DEFAULT '' NOT NULL,
 	group_membership tinyint(4) DEFAULT '0' NOT NULL,

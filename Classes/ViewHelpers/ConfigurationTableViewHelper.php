@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -61,11 +63,13 @@ class ConfigurationTableViewHelper extends \TYPO3Fluid\Fluid\Core\ViewHelper\Abs
      * @param bool &$hasError
      * @return string
      */
-    protected function renderTable($data, string $humanKeyNames, int $depth, bool &$hasError): string
+    protected function renderTable(array|string $data, bool $humanKeyNames, int $depth, bool &$hasError): string
     {
         if (!is_array($data)) {
             return htmlspecialchars($data);
-        } elseif (empty($data)) {
+        }
+
+        if (empty($data)) {
             return '<em>' . htmlspecialchars($this->translate('module_status.messages.empty')) . '</em>';
         }
 
@@ -75,7 +79,7 @@ class ConfigurationTableViewHelper extends \TYPO3Fluid\Fluid\Core\ViewHelper\Abs
         $content = [];
         foreach ($data as $key => $value) {
             $hasValueError = false;
-            $valueCell = $this->renderValueCell($value, $key, $depth, $hasValueError);
+            $valueCell = $this->renderValueCell($value, (string)$key, $depth, $hasValueError);
             $class = 'key';
             if ($hasValueError) {
                 $hasError = true;
@@ -84,7 +88,7 @@ class ConfigurationTableViewHelper extends \TYPO3Fluid\Fluid\Core\ViewHelper\Abs
             if ($humanKeyNames) {
                 $key = $this->processKey($key);
             }
-            $content[] = sprintf('<tr class="' . $trClass . '"><td class="' . $class . '">%s</td>%s</tr>', htmlspecialchars($key), $valueCell);
+            $content[] = sprintf('<tr class="' . $trClass . '"><td class="' . $class . '">%s</td>%s</tr>', htmlspecialchars((string)$key), $valueCell);
         }
 
         return '<table class="' . $tableClass . '">' . implode(LF, $content) . '</table>';
@@ -99,7 +103,7 @@ class ConfigurationTableViewHelper extends \TYPO3Fluid\Fluid\Core\ViewHelper\Abs
      * @param bool &$hasError
      * @return string
      */
-    protected function renderValueCell($value, string $key, int $depth, bool &$hasError): string
+    protected function renderValueCell(mixed $value, string $key, int $depth, bool &$hasError): string
     {
         if ($key === '__errors') {
             $hasError = true;
@@ -141,7 +145,7 @@ class ConfigurationTableViewHelper extends \TYPO3Fluid\Fluid\Core\ViewHelper\Abs
             $value = $iconFactory->getIcon($icon, \TYPO3\CMS\Core\Imaging\Icon::SIZE_SMALL)->render();
             $value .=  ' ' . htmlspecialchars($label);
         } elseif ($value instanceof \TYPO3\CMS\Extbase\DomainObject\AbstractEntity) {
-            if ($value instanceof \TYPO3\CMS\Extbase\Domain\Model\BackendUserGroup) {
+            if ($value instanceof \Causal\IgLdapSsoAuth\Domain\Model\BackendUserGroup) {
                 $icon = 'status-user-group-backend';
                 $table = 'be_groups';
             } else {

@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -12,7 +14,7 @@
  * The TYPO3 project - inspiring people to share!
  */
 
-namespace Causal\IgLdapSsoAuth\Tca;
+namespace Causal\IgLdapSsoAuth\Backend\Tca;
 
 use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\CMS\Core\Site\SiteFinder;
@@ -45,18 +47,22 @@ class SiteConfigurationItemsProcFunc
     public function getSites(array &$config): void
     {
         $allSites = $this->siteFinder->getAllSites();
+        $typo3Version = (new \TYPO3\CMS\Core\Information\Typo3Version())->getMajorVersion();
 
         $config['items'] = array_map(
-            static function (Site $site) {
+            static function (Site $site) use ($typo3Version) {
                 $host = $site->getBase()->getHost();
                 if (empty($host)) {
                     $host = GeneralUtility::getIndpEnv('TYPO3_HOST_ONLY');
                 }
-                return [
-                    // displayed value
+                return $typo3Version >= 12
+                    ? [
+                        'label' => $host,
+                        'value' => $site->getIdentifier(),
+                    ]
+                    : [
                     $host,
-                    // stored value
-                    $site->getIdentifier()
+                        $site->getIdentifier(),
                 ];
             },
             $allSites

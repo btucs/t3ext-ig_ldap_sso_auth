@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -31,46 +33,37 @@ use Causal\IgLdapSsoAuth\Library\Ldap;
 class UserImportUtility
 {
     /**
-     * Synchronization context (may be FE, BE or both).
-     *
-     * @var string
-     */
-    protected $context;
-
-    /**
      * Selected LDAP configuration.
-     *
-     * @var \Causal\IgLdapSsoAuth\Domain\Model\Configuration
      */
-    protected $configuration;
+    protected readonly array $configuration;
 
     /**
      * Which table to import users into.
      *
      * @var string
      */
-    protected $userTable;
+    protected readonly string $userTable;
 
     /**
      * Which table to import groups into.
      *
      * @var string
      */
-    protected $groupTable;
+    protected readonly string $groupTable;
 
     /**
      * Total users added (for reporting).
      *
      * @var int
      */
-    protected $usersAdded = 0;
+    protected int $usersAdded = 0;
 
     /**
      * Total users updated (for reporting).
      *
      * @var int
      */
-    protected $usersUpdated = 0;
+    protected int $usersUpdated = 0;
 
     /**
      * Default constructor.
@@ -78,23 +71,43 @@ class UserImportUtility
      * @param \Causal\IgLdapSsoAuth\Domain\Model\Configuration $configuration
      * @param string $context
      */
-    public function __construct(\Causal\IgLdapSsoAuth\Domain\Model\Configuration $configuration, $context)
+    public function __construct(
+        \Causal\IgLdapSsoAuth\Domain\Model\Configuration $configuration,
+        protected string $context
+    )
     {
         // Load the configuration
         Configuration::initialize($context, $configuration);
+
         // Store current context and get related configuration
-        $this->context = $context;
-        $this->configuration = (strtolower($context) === 'fe')
+        $this->context = strtolower($context);
+        $this->configuration = $this->context === 'fe'
             ? Configuration::getFrontendConfiguration()
             : Configuration::getBackendConfiguration();
         // Define related tables
-        if (strtolower($context) === 'be') {
+        if ($this->context === 'be') {
             $this->userTable = 'be_users';
             $this->groupTable = 'be_groups';
         } else {
             $this->userTable = 'fe_users';
             $this->groupTable = 'fe_groups';
         }
+    }
+
+    /**
+     * @return string
+     */
+    public function getContext(): string
+    {
+        return $this->context;
+    }
+
+    /**
+     * @return string
+     */
+    public function getUserTable(): string
+    {
+        return $this->userTable;
     }
 
     /**
@@ -209,10 +222,16 @@ class UserImportUtility
      * @param array $user Local user information
      * @param array $ldapUser LDAP user information
      * @param string $restoreBehavior How to restore users (only for update)
+     * @param string $disableField
      * @return array Modified user data
      * @throws ImportUsersException
      */
-    public function import(array $user, array $ldapUser, string $restoreBehavior = 'both'): array
+    public function import(
+        array $user,
+        array $ldapUser,
+        string $restoreBehavior = 'both',
+        string $disableField = ''
+    ): array
     {
         // Store the extra data for later restore and remove it
         if (isset($user['__extraData'])) {
@@ -220,6 +239,13 @@ class UserImportUtility
             unset($user['__extraData']);
         }
 
+        $restoreDisableValue = 0;
+        if (!empty($disableField) && isset($user['__' . $disableField])) {
+            $restoreDisableValue = $user['__' . $disableField];
+            unset($user['__' . $disableField]);
+        }
+
+        //$typo3Groups = Authentication::getUserGroups($ldapUser, $this->configuration, $this->groupTable);
         $typo3Groups = Authentication::getOrCreateUserGroups($ldapUser, $this->configuration, $this->groupTable);
         if ($typo3Groups === null) {
             // Required LDAP groups are missing: quit!
@@ -240,7 +266,7 @@ class UserImportUtility
             // (default to both undelete and re-enable)
             switch ($restoreBehavior) {
                 case 'enable':
-                    $user[$GLOBALS['TCA'][$this->userTable]['ctrl']['enablecolumns']['disabled']] = 0;
+                    $user[$GLOBALS['TCA'][$this->userTable]['ctrl']['enablecolumns']['disabled']] = $restoreDisableValue;
                     break;
                 case 'undelete':
                     $user[$GLOBALS['TCA'][$this->userTable]['ctrl']['delete']] = 0;
@@ -248,7 +274,7 @@ class UserImportUtility
                 case 'nothing':
                     break;
                 default:
-                    $user[$GLOBALS['TCA'][$this->userTable]['ctrl']['enablecolumns']['disabled']] = 0;
+                    $user[$GLOBALS['TCA'][$this->userTable]['ctrl']['enablecolumns']['disabled']] = $restoreDisableValue;
                     $user[$GLOBALS['TCA'][$this->userTable]['ctrl']['delete']] = 0;
             }
             $user = Typo3UserRepository::setUserGroups($user, $typo3Groups, $this->groupTable);
@@ -263,8 +289,14 @@ class UserImportUtility
             $user['__extraData'] = $extraData;
 
             // Hook for processing the extra data
-            if (is_array($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['ig_ldap_sso_auth']['extraDataProcessing'])) {
+            if (is_array($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['ig_ldap_sso_auth']['extraDataProcessing'] ?? null)) {
                 foreach ($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['ig_ldap_sso_auth']['extraDataProcessing'] as $className) {
+                    trigger_error(
+                        'Hook extraDataProcessing is deprecated since version 4.1. Please migrate '
+                            . $className . ' to listen to the PSR-14 events "UserAddedEvent" and "UserUpdatedEvent".',
+                        E_USER_DEPRECATED
+                    );
+
                     /** @var \Causal\IgLdapSsoAuth\Utility\ExtraDataProcessorInterface $postProcessor */
                     $postProcessor = GeneralUtility::makeInstance($className);
                     if ($postProcessor instanceof \Causal\IgLdapSsoAuth\Utility\ExtraDataProcessorInterface) {

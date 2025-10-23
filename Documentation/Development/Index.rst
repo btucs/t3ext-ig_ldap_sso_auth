@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ﻿.. include:: ../Includes.rst.txt
 .. _development:
 
@@ -76,3 +77,26 @@ through the following code either in :file:`AdditionalConfiguration.php` or in
 
    $GLOBALS['TYPO3_CONF_VARS']['EXT']['extConf']['ig_ldap_sso_auth'] = serialize($ldapConfig);
 
+=======
+﻿.. _development:
+
+Development
+===========
+
+This chapter describes some internals of the ig_ldap_sso_auth extension to let
+you extend it easily.
+
+
+.. _development-hooks:
+
+Hooks
+-----
+
+.. toctree::
+	:maxdepth: 1
+
+	Hooks/AttributesProcessing
+	Hooks/ExtraDataProcessing
+	Hooks/ExtraMergeField
+	Hooks/GetGroupsProcessing
+>>>>>>> master

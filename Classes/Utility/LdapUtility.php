@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -14,6 +16,10 @@
 
 namespace Causal\IgLdapSsoAuth\Utility;
 
+use Causal\IgLdapSsoAuth\Event\AttributesProcessingEvent;
+use LDAP\Connection;
+use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
+use TYPO3\CMS\Core\Charset\CharsetConverter;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use Causal\IgLdapSsoAuth\Exception\InvalidHostnameException;
 use Causal\IgLdapSsoAuth\Exception\UnresolvedPhpDependencyException;
@@ -25,7 +31,7 @@ use Causal\IgLdapSsoAuth\Exception\UnresolvedPhpDependencyException;
  * @subpackage  ig_ldap_sso_auth
  * @author      Xavier Perseguers <xavier@causal.ch>
  * @author      Michael Gagnon <mgagnon@infoglobe.ca>
- * @copyright    (c) 2011-2024 Xavier Perseguers <xavier@causal.ch>
+ * @copyright    (c) 2011-2025 Xavier Perseguers <xavier@causal.ch>
  * @copyright    (c) 2007-2010 Michael Gagnon <mgagnon@infoglobe.ca>
  * @see http://www-sop.inria.fr/semir/personnel/Laurent.Mirtain/ldap-livre.html
  *
@@ -43,30 +49,26 @@ use Causal\IgLdapSsoAuth\Exception\UnresolvedPhpDependencyException;
  *          Abandon     Abandon an operation in progress
  *          Extended    Extended operations (v3)
  */
+#[Autoconfigure(shared: false)]
 class LdapUtility
 {
-    const PAGE_SIZE = 100;
-
-    /**
-     * Only used if pagination fails to be initialized
-     */
     const MAX_ENTRIES = 500;
 
     /**
      * LDAP Server charset
      * @var string
      */
-    protected $ldapCharacterSet;
+    protected string $ldapCharacterSet;
 
     /**
      * Local character set (TYPO3)
      * @var string
      */
-    protected $typo3CharacterSet;
+    protected string $typo3CharacterSet;
 
     /**
      * LDAP Server Connection ID
-     * @var resource
+     * @var Connection
      */
     protected $connection;
 
@@ -86,23 +88,32 @@ class LdapUtility
      * LDAP server status
      * @var array
      */
-    protected $status;
+    protected array $status = [];
 
     /**
      * 'OpenLDAP' OR 'Active Directory'
      * @var string
      */
-    protected $serverType;
+    protected string $serverType;
 
     /**
      * @var bool
      */
-    protected $hasPagination;
+    protected bool $hasPagination = false;
 
     /**
      * @var string
      */
-    protected $paginationCookie = null;
+    protected ?string $paginationCookie = null;
+
+    /**
+     * @param CharsetConverter $charsetConverter
+     */
+    public function __construct(
+        protected readonly CharsetConverter $charsetConverter
+    )
+    {
+    }
 
     /**
      * Connects to an LDAP server.
@@ -115,6 +126,7 @@ class LdapUtility
      * @param bool $tls
      * @param bool $ssl
      * @param bool $tlsReqcert
+     * @param int $timeout
      * @return bool true if connection succeeded.
      * @throws UnresolvedPhpDependencyException when LDAP extension for PHP is not available
      */
@@ -126,7 +138,8 @@ class LdapUtility
         string $serverType = 'OpenLDAP',
         bool $tls = false,
         bool $ssl = false,
-        bool $tlsReqcert = false
+        bool $tlsReqcert = false,
+        int $timeout = 0
     ): bool
     {
         if ($tlsReqcert === false) {
@@ -142,6 +155,11 @@ class LdapUtility
         $this->status['connect']['host'] = $host;
         $this->status['connect']['port'] = $port;
         $this->serverType = $serverType;
+
+        // Set custom network timeout
+        if ($timeout) {
+            @ldap_set_option(null, LDAP_OPT_NETWORK_TIMEOUT, $timeout);
+        }
 
         if ($ssl) {
             $this->status['option']['ssl'] = 'Enable';
@@ -174,6 +192,12 @@ class LdapUtility
         // We only support LDAP v3 from now on
         $protocol = 3;
         @ldap_set_option($this->connection, LDAP_OPT_PROTOCOL_VERSION, $protocol);
+
+        // Keep the connection alive (options at least supported by OpenLDAP)
+        @ldap_set_option($this->connection, LDAP_OPT_RESTART, true);
+        @ldap_set_option($this->connection, LDAP_OPT_X_KEEPALIVE_IDLE, 60);
+        @ldap_set_option($this->connection, LDAP_OPT_X_KEEPALIVE_PROBES, 3);
+        @ldap_set_option($this->connection, LDAP_OPT_X_KEEPALIVE_INTERVAL, 30);
 
         // Active Directory (User@Domain) configuration
         if ($serverType === 'Active Directory') {
@@ -209,9 +233,14 @@ class LdapUtility
      */
     public function disconnect(): void
     {
-        if ($this->connection) {
-            @ldap_close($this->connection);
+        if ($this->isConnected()) {
+            try {
+                @ldap_unbind($this->connection);
+                $this->connection = null;
+            } catch (\Error $e) {
+
         }
+    }
     }
 
     /**
@@ -221,7 +250,10 @@ class LdapUtility
      * @param string|nul $password
      * @return bool true if bind succeeded
      */
-    public function bind(?string $dn = null, ?string $password = null): bool
+    public function bind(
+        ?string $dn = null,
+        #[\SensitiveParameter] ?string $password = null
+    ): bool
     {
         // LDAP_OPT_DIAGNOSTIC_MESSAGE gets the extended error output
         // from the ldap_get_option() function
@@ -285,7 +317,7 @@ class LdapUtility
         ];
 
         $parts = explode(',', $message);
-        if (preg_match('/data ([0-9a-f]+)/i', trim($parts[2]), $matches)) {
+        if (preg_match('/data ([0-9a-f]+)/i', trim($parts[2] ?? ''), $matches)) {
             $code = $matches[1];
             $diagnostic = isset($codeMessages[$code])
                 ? sprintf('%s (%s)', $codeMessages[$code], $code)
@@ -335,14 +367,27 @@ class LdapUtility
                 $this->paginationCookie = null;
             }
 
-            $ldapControls = ldap_read($this->connection, '', '(objectClass=*)', ['supportedControl']);
+            $ldapControls = @ldap_read($this->connection, '', '(objectClass=*)', ['supportedControl']);
+            if ($ldapControls !== false) {
             $ldapEntries = ldap_get_entries($this->connection, $ldapControls);
-            if (isset($ldapEntries[0]['supportedcontrol']) && in_array(LDAP_CONTROL_PAGEDRESULTS, $ldapEntries[0]['supportedcontrol'])) {
-                $this->hasPagination = true;
+                $this->hasPagination = isset($ldapEntries[0]['supportedcontrol']) && in_array(LDAP_CONTROL_PAGEDRESULTS, $ldapEntries[0]['supportedcontrol']);
             }
 
+            $controls = [];
+            if ($this->hasPagination) {
             $controls = [['oid' => LDAP_CONTROL_PAGEDRESULTS, 'value' => ['size' => static::MAX_ENTRIES, 'cookie' => $this->paginationCookie]]];
-            $this->searchResult = @ldap_search($this->connection, $baseDn, $filter, $attributes, $attributesOnly, $sizeLimit, $timeLimit, $dereferenceAliases, $controls);
+            }
+            $this->searchResult = @ldap_search(
+                $this->connection,
+                $baseDn,
+                $filter,
+                $attributes,
+                $attributesOnly ? 1 : 0,
+                $sizeLimit,
+                $timeLimit,
+                $dereferenceAliases,
+                $controls
+            );
 
             if (!$this->searchResult) {
                 // Search failed.
@@ -380,9 +425,22 @@ class LdapUtility
             $attributes = ldap_get_attributes($this->connection, $entry);
             $attributes['dn'] = ldap_get_dn($this->connection, $entry);
 
+            $event = NotificationUtility::dispatch(new AttributesProcessingEvent(
+                $this->connection,
+                $entry,
+                $attributes
+            ));
+            $attributes = $event->getAttributes();
+
             // Hook for processing the attributes
             if (is_array($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['ig_ldap_sso_auth']['attributesProcessing'] ?? null)) {
                 foreach ($GLOBALS['TYPO3_CONF_VARS']['EXTCONF']['ig_ldap_sso_auth']['attributesProcessing'] as $className) {
+                    trigger_error(
+                        'Hook attributesProcessing is deprecated since version 4.1. Please migrate '
+                        . $className . ' to listen to the PSR-14 event "AttributesProcessingEvent".',
+                        E_USER_DEPRECATED
+                    );
+
                     /** @var \Causal\IgLdapSsoAuth\Utility\AttributesProcessorInterface $postProcessor */
                     $postProcessor = GeneralUtility::makeInstance($className);
                     if ($postProcessor instanceof \Causal\IgLdapSsoAuth\Utility\AttributesProcessorInterface) {
@@ -395,14 +453,14 @@ class LdapUtility
 
             $tempEntry = [];
             foreach ($attributes as $key => $value) {
-                $tempEntry[strtolower($key)] = $value;
+                $tempEntry[strtolower((string)$key)] = $value;
             }
 
             $entries[] = $tempEntry;
             $entries['count']++;
 
             // Should never happen unless pagination is not supported, for some odd reason
-            if ($entries['count'] == static::MAX_ENTRIES) {
+            if ($entries['count'] > static::MAX_ENTRIES) {
                 break;
             }
         } while ($entry = @ldap_next_entry($this->connection, $entry));
@@ -443,12 +501,14 @@ class LdapUtility
      */
     public function getFirstEntry()
     {
-        $this->status['get_first_entry']['status'] = ldap_error($this->connection);
-        $attributes = @ldap_get_attributes($this->connection, $this->firstResultEntry);
         $tempEntry = [];
+        if (is_resource($this->firstResultEntry) || is_object($this->firstResultEntry) /* PHP 8.1 */) {
+        $attributes = @ldap_get_attributes($this->connection, $this->firstResultEntry);
         foreach ($attributes as $key => $value) {
-            $tempEntry[strtolower($key)] = $value;
+                $tempEntry[strtolower((string)$key)] = $value;
         }
+        }
+        $this->status['get_first_entry']['status'] = ldap_error($this->connection);
         return $this->convertCharacterSetForArray($tempEntry, $this->ldapCharacterSet, $this->typo3CharacterSet);
     }
 
@@ -512,28 +572,21 @@ class LdapUtility
      * @param string $toCharacterSet Target character set
      * @return array|mixed
      */
-    protected function convertCharacterSetForArray($arr, string $fromCharacterSet, string $toCharacterSet)
+    protected function convertCharacterSetForArray(
+        $arr,
+        string $fromCharacterSet,
+        string $toCharacterSet
+    )
     {
-        /** @var \TYPO3\CMS\Core\Charset\CharsetConverter $csObj */
-        static $csObj = null;
-
         if (!is_array($arr)) {
             return $arr;
-        }
-
-        if ($csObj === null) {
-            if ((isset($GLOBALS['TSFE'])) && (isset($GLOBALS['TSFE']->csConvObj))) {
-                $csObj = $GLOBALS['TSFE']->csConvObj;
-            } else {
-                $csObj = GeneralUtility::makeInstance(\TYPO3\CMS\Core\Charset\CharsetConverter::class);
-            }
         }
 
         foreach ($arr as $k => $val) {
             if (is_array($val)) {
                 $arr[$k] = $this->convertCharacterSetForArray($val, $fromCharacterSet, $toCharacterSet);
             } else {
-                $arr[$k] = $csObj->conv($val, $fromCharacterSet, $toCharacterSet);
+                $arr[$k] = $this->charsetConverter->conv((string)$val, $fromCharacterSet, $toCharacterSet);
             }
         }
 

@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 /*
  * This file is part of the TYPO3 CMS project.
  *
@@ -26,163 +28,72 @@ class Configuration
     /**
      * @var int The uid of the record. The uid is only unique in the context of the database table.
      */
-    protected $uid;
+    protected ?int $uid = null;
+
+    protected string $name = '';
+
+    protected string $sites = '';
+
+    protected int $ldapServer = \Causal\IgLdapSsoAuth\Library\Configuration::SERVER_OPENLDAP;
+
+    protected string $ldapCharset = '';
 
     /**
-     * @var string
-     */
-    protected $name;
-
-    /**
-     * @var string
-     */
-    protected $domains;
-
-    /**
-     * @var string
-     */
-    protected $sites;
-
-    /**
-     * @var int
-     */
-    protected $ldapServer;
-
-    /**
-     * @var string
-     */
-    protected $ldapCharset;
-
-    /**
-     * @var int
      * @deprecated
      */
-    protected $ldapProtocol;
+    protected int $ldapProtocol = 3;
 
-    /**
-     * @var string
-     */
-    protected $ldapHost;
+    protected string $ldapHost = '';
 
-    /**
-     * @var int
-     */
-    protected $ldapPort;
+    protected int $ldapPort = 389;
 
-    /**
-     * @var bool
-     */
-    protected $ldapTls;
+    protected bool $ldapTls = false;
 
-    /**
-     * @var bool
-     */
-    protected $ldapTlsReqcert;
+    protected bool $ldapTlsReqcert = false;
 
-    /**
-     * @var bool
-     */
-    protected $ldapSsl;
+    protected bool $ldapSsl = false;
 
-    /**
-     * @var string
-     */
-    protected $ldapBindDn;
+    protected int $ldapTimeout = 0;
 
-    /**
-     * @var string
-     */
-    protected $ldapPassword;
+    protected string $ldapBindDn = '';
 
-    /**
-     * @var int
-     */
-    protected $groupMembership;
+    protected string $ldapPassword = '';
 
-    /**
-     * @var string
-     */
-    protected $backendUsersBaseDn;
+    protected int $groupMembership = \Causal\IgLdapSsoAuth\Library\Configuration::GROUP_MEMBERSHIP_FROM_GROUP;
 
-    /**
-     * @var string
-     */
-    protected $backendUsersFilter;
+    protected string $backendUsersBaseDn = '';
 
-    /**
-     * @var string
-     */
-    protected $backendUsersMapping;
+    protected ?string $backendUsersFilter = null;
 
-    /**
-     * @var string
-     */
-    protected $backendGroupsBaseDn;
+    protected ?string $backendUsersMapping = null;
 
-    /**
-     * @var string
-     */
-    protected $backendGroupsFilter;
+    protected string $backendGroupsBaseDn = '';
 
-    /**
-     * @var string
-     */
-    protected $backendGroupsMapping;
+    protected ?string $backendGroupsFilter = null;
 
-    /**
-     * @var array
-     */
-    protected $backendGroupsRequired;
+    protected ?string $backendGroupsMapping = null;
 
-    /**
-     * @var array
-     */
-    protected $backendGroupsAssigned;
+    protected array $backendGroupsRequired = [];
 
-    /**
-     * @var array
-     */
-    protected $backendGroupsAdministrator;
+    protected array $backendGroupsAssigned = [];
 
-    /**
-     * @var string
-     */
-    protected $frontendUsersBaseDn;
+    protected array $backendGroupsAdministrator = [];
 
-    /**
-     * @var string
-     */
-    protected $frontendUsersFilter;
+    protected string $frontendUsersBaseDn = '';
 
-    /**
-     * @var string
-     */
-    protected $frontendUsersMapping;
+    protected ?string $frontendUsersFilter = null;
 
-    /**
-     * @var string
-     */
-    protected $frontendGroupsBaseDn;
+    protected ?string $frontendUsersMapping = null;
 
-    /**
-     * @var string
-     */
-    protected $frontendGroupsFilter;
+    protected string $frontendGroupsBaseDn = '';
 
-    /**
-     * @var string
-     */
-    protected $frontendGroupsMapping;
+    protected ?string $frontendGroupsFilter = null;
 
-    /**
-     * @var array
-     */
-    protected $frontendGroupsRequired;
+    protected ?string $frontendGroupsMapping = null;
 
-    /**
-     * @var array
-     */
-    protected $frontendGroupsAssigned;
+    protected array $frontendGroupsRequired = [];
+
+    protected array $frontendGroupsAssigned = [];
 
     /**
      * @var string
@@ -206,11 +117,581 @@ class Configuration
      */
     public function getUid(): ?int
     {
-        if ($this->uid !== null) {
-            return (int)$this->uid;
-        } else {
-            return null;
+        return $this->uid;
         }
+
+    /**
+     * @param int $uid
+     * @return $this
+     */
+    public function setUid(int $uid): self
+    {
+        $this->uid = $uid;
+        return $this;
+        }
+
+    /**
+     * @return string
+     */
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    /**
+     * @param string $name
+     * @return $this
+     */
+    public function setName(string $name): self
+    {
+        $this->name = $name;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getSites(): string
+    {
+        return $this->sites;
+    }
+
+    /**
+     * @param string $sites
+     * @return $this
+     */
+    public function setSites(string $sites): self
+    {
+        $this->sites = $sites;
+        return $this;
+    }
+
+    /**
+     * @return int
+     */
+    public function getLdapServer(): int
+    {
+        return $this->ldapServer;
+    }
+
+    /**
+     * @param int $ldapServer
+     * @return $this
+     */
+    public function setLdapServer(int $ldapServer): self
+    {
+        $this->ldapServer = $ldapServer;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getLdapCharset(): string
+    {
+        return $this->ldapCharset;
+    }
+
+    /**
+     * @param string $ldapCharset
+     * @return $this
+     */
+    public function setLdapCharset(string $ldapCharset): self
+    {
+        $this->ldapCharset = $ldapCharset;
+        return $this;
+    }
+
+    /**
+     * @return int
+     * @deprecated
+     */
+    public function getLdapProtocol(): int
+    {
+        return $this->ldapProtocol;
+    }
+
+    /**
+     * @return string
+     */
+    public function getLdapHost(): string
+    {
+        return $this->ldapHost;
+    }
+
+    /**
+     * @param string $ldapHost
+     * @return $this
+     */
+    public function setLdapHost(string $ldapHost): self
+    {
+        $this->ldapHost = $ldapHost;
+        return $this;
+    }
+
+    /**
+     * @return int
+     */
+    public function getLdapPort(): int
+    {
+        return $this->ldapPort;
+    }
+
+    /**
+     * @param int $ldapPort
+     * @return $this
+     */
+    public function setLdapPort(int $ldapPort): self
+    {
+        $this->ldapPort = $ldapPort;
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isLdapTls(): bool
+    {
+        return $this->ldapTls;
+    }
+
+    /**
+     * @param bool $ldapTls
+     * @return $this
+     */
+    public function setLdapTls(bool $ldapTls): self
+    {
+        $this->ldapTls = $ldapTls;
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isLdapTlsReqcert(): bool
+    {
+        return $this->ldapTlsReqcert;
+    }
+
+    /**
+     * @param bool $ldapTlsReqcert
+     * @return $this
+     */
+    public function setLdapTlsReqcert(bool $ldapTlsReqcert): self
+    {
+        $this->ldapTlsReqcert = $ldapTlsReqcert;
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isLdapSsl(): bool
+    {
+        return $this->ldapSsl;
+    }
+
+    /**
+     * @param bool $ldapSsl
+     * @return $this
+     */
+    public function setLdapSsl(bool $ldapSsl): self
+    {
+        $this->ldapSsl = $ldapSsl;
+        return $this;
+    }
+
+    /**
+     * @return int
+     */
+    public function getLdapTimeout(): int
+    {
+        return $this->ldapTimeout;
+    }
+
+    /**
+     * @param int $ldapTimeout
+     * @return $this
+     */
+    public function setLdapTimeout(int $ldapTimeout): self
+    {
+        $this->ldapTimeout = $ldapTimeout;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getLdapBindDn(): string
+    {
+        return $this->ldapBindDn;
+    }
+
+    /**
+     * @param string $ldapBindDn
+     * @return $this
+     */
+    public function setLdapBindDn(string $ldapBindDn): self
+    {
+        $this->ldapBindDn = $ldapBindDn;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getLdapPassword(): string
+    {
+        return $this->ldapPassword;
+    }
+
+    /**
+     * @param string $ldapPassword
+     * @return $this
+     */
+    public function setLdapPassword(string $ldapPassword): self
+    {
+        $this->ldapPassword = $ldapPassword;
+        return $this;
+    }
+
+    /**
+     * @return int
+     */
+    public function getGroupMembership(): int
+    {
+        return $this->groupMembership;
+    }
+
+    /**
+     * @param int $groupMembership
+     * @return $this
+     */
+    public function setGroupMembership(int $groupMembership): self
+    {
+        $this->groupMembership = $groupMembership;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getBackendUsersBaseDn(): string
+    {
+        return $this->backendUsersBaseDn;
+    }
+
+    /**
+     * @param string $backendUsersBaseDn
+     * @return $this
+     */
+    public function setBackendUsersBaseDn(string $backendUsersBaseDn): self
+    {
+        $this->backendUsersBaseDn = $backendUsersBaseDn;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getBackendUsersFilter(): string
+    {
+        return $this->backendUsersFilter ?? '';
+    }
+
+    /**
+     * @param string|null $backendUsersFilter
+     * @return $this
+     */
+    public function setBackendUsersFilter(?string $backendUsersFilter): self
+    {
+        $this->backendUsersFilter = $backendUsersFilter;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getBackendUsersMapping(): string
+    {
+        return $this->backendUsersMapping ?? '';
+    }
+
+    /**
+     * @param string|null $backendUsersMapping
+     * @return $this
+     */
+    public function setBackendUsersMapping(?string $backendUsersMapping): self
+    {
+        $this->backendUsersMapping = $backendUsersMapping;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getBackendGroupsBaseDn(): string
+    {
+        return $this->backendGroupsBaseDn;
+    }
+
+    /**
+     * @param string $backendGroupsBaseDn
+     * @return $this
+     */
+    public function setBackendGroupsBaseDn(string $backendGroupsBaseDn): self
+    {
+        $this->backendGroupsBaseDn = $backendGroupsBaseDn;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getBackendGroupsFilter(): string
+    {
+        return $this->backendGroupsFilter ?? '';
+    }
+
+    /**
+     * @param string|null $backendGroupsFilter
+     * @return $this
+     */
+    public function setBackendGroupsFilter(?string $backendGroupsFilter): self
+    {
+        $this->backendGroupsFilter = $backendGroupsFilter;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getBackendGroupsMapping(): string
+    {
+        return $this->backendGroupsMapping ?? '';
+    }
+
+    /**
+     * @param string|null $backendGroupsMapping
+     * @return $this
+     */
+    public function setBackendGroupsMapping(?string $backendGroupsMapping): self
+    {
+        $this->backendGroupsMapping = $backendGroupsMapping;
+        return $this;
+    }
+
+    /**
+     * @return \Causal\IgLdapSsoAuth\Domain\Model\BackendUserGroup[]
+     */
+    public function getBackendGroupsRequired(): array
+    {
+        return $this->backendGroupsRequired;
+    }
+
+    /**
+     * @param \Causal\IgLdapSsoAuth\Domain\Model\BackendUserGroup[] $backendGroupsRequired
+     * @return $this
+     */
+    public function setBackendGroupsRequired(array $backendGroupsRequired): self
+    {
+        $this->backendGroupsRequired = $backendGroupsRequired;
+        return $this;
+    }
+
+    /**
+     * @return \Causal\IgLdapSsoAuth\Domain\Model\BackendUserGroup[]
+     */
+    public function getBackendGroupsAssigned(): array
+    {
+        return $this->backendGroupsAssigned;
+    }
+
+    /**
+     * @param \Causal\IgLdapSsoAuth\Domain\Model\BackendUserGroup[] $backendGroupsAssigned
+     * @return $this
+     */
+    public function setBackendGroupsAssigned(array $backendGroupsAssigned): self
+    {
+        $this->backendGroupsAssigned = $backendGroupsAssigned;
+        return $this;
+    }
+
+    /**
+     * @return \Causal\IgLdapSsoAuth\Domain\Model\BackendUserGroup[]
+     */
+    public function getBackendGroupsAdministrator(): array
+    {
+        return $this->backendGroupsAdministrator;
+    }
+
+    /**
+     * @param \Causal\IgLdapSsoAuth\Domain\Model\BackendUserGroup[] $backendGroupsAdministrator
+     * @return $this
+     */
+    public function setBackendGroupsAdministrator(array $backendGroupsAdministrator): self
+    {
+        $this->backendGroupsAdministrator = $backendGroupsAdministrator;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getFrontendUsersBaseDn(): string
+    {
+        return $this->frontendUsersBaseDn;
+    }
+
+    /**
+     * @param string $frontendUsersBaseDn
+     * @return $this
+     */
+    public function setFrontendUsersBaseDn(string $frontendUsersBaseDn): self
+    {
+        $this->frontendUsersBaseDn = $frontendUsersBaseDn;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getFrontendUsersFilter(): string
+    {
+        return $this->frontendUsersFilter ?? '';
+    }
+
+    /**
+     * @param string|null $frontendUsersFilter
+     * @return $this
+     */
+    public function setFrontendUsersFilter(?string $frontendUsersFilter): self
+    {
+        $this->frontendUsersFilter = $frontendUsersFilter;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getFrontendUsersMapping(): string
+    {
+        return $this->frontendUsersMapping ?? '';
+    }
+
+    /**
+     * @param string|null $frontendUsersMapping
+     * @return $this
+     */
+    public function setFrontendUsersMapping(?string $frontendUsersMapping): self
+    {
+        $this->frontendUsersMapping = $frontendUsersMapping;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getFrontendGroupsBaseDn(): string
+    {
+        return $this->frontendGroupsBaseDn;
+    }
+
+    /**
+     * @param string $frontendGroupsBaseDn
+     * @return $this
+     */
+    public function setFrontendGroupsBaseDn(string $frontendGroupsBaseDn): self
+    {
+        $this->frontendGroupsBaseDn = $frontendGroupsBaseDn;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getFrontendGroupsFilter(): string
+    {
+        return $this->frontendGroupsFilter ?? '';
+    }
+
+    /**
+     * @param string|null $frontendGroupsFilter
+     * @return $this
+     */
+    public function setFrontendGroupsFilter(?string $frontendGroupsFilter): self
+    {
+        $this->frontendGroupsFilter = $frontendGroupsFilter;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getFrontendGroupsMapping(): string
+    {
+        return $this->frontendGroupsMapping ?? '';
+    }
+
+    /**
+     * @param string|null $frontendGroupsMapping
+     * @return $this
+     */
+    public function setFrontendGroupsMapping(?string $frontendGroupsMapping): self
+    {
+        $this->frontendGroupsMapping = $frontendGroupsMapping;
+        return $this;
+    }
+
+    /**
+     * @return \Causal\IgLdapSsoAuth\Domain\Model\FrontendUserGroup[]
+     */
+    public function getFrontendGroupsRequired(): array
+    {
+        return $this->frontendGroupsRequired;
+    }
+
+    /**
+     * @param \Causal\IgLdapSsoAuth\Domain\Model\FrontendUserGroup[] $frontendGroupsRequired
+     * @return $this
+     */
+    public function setFrontendGroupsRequired(array $frontendGroupsRequired): self
+    {
+        $this->frontendGroupsRequired = $frontendGroupsRequired;
+        return $this;
+    }
+
+    /**
+     * @return \Causal\IgLdapSsoAuth\Domain\Model\FrontendUserGroup[]
+     */
+    public function getFrontendGroupsAssigned(): array
+    {
+        return $this->frontendGroupsAssigned;
+    }
+
+    public function getBackendUsersImportBaseDn(): ?string
+    {
+        return $this->backendUsersImportBaseDn;
+    }
+
+    public function getBackendUsersImportFilter(): ?string
+    {
+        return $this->backendUsersImportFilter;
+    }
+
+    public function getBackendUsersFollowAlias(): ?bool
+    {
+        return $this->backendUsersFollowAlias;
+    }
+
+    /**
+     * @param \Causal\IgLdapSsoAuth\Domain\Model\FrontendUserGroup[] $frontendGroupsAssigned
+     * @return $this
+     */
+    public function setFrontendGroupsAssigned(array $frontendGroupsAssigned): self
+    {
+        $this->frontendGroupsAssigned = $frontendGroupsAssigned;
+        return $this;
     }
 
     /**
@@ -240,281 +721,6 @@ class Configuration
     public function _hasProperty(string $propertyName): bool
     {
         return property_exists($this, $propertyName);
-    }
-
-    /**
-     * @return string
-     */
-    public function getName(): string
-    {
-        return $this->name;
-    }
-
-    /**
-     * @return string
-     * @deprecated since TYPO3 v10
-     */
-    public function getDomains(): string
-    {
-        return $this->domains;
-    }
-
-    /**
-     * @return string
-     */
-    public function getSites(): string
-    {
-        return $this->sites;
-    }
-
-    /**
-     * @return int
-     */
-    public function getLdapServer(): int
-    {
-        return $this->ldapServer;
-    }
-
-    /**
-     * @return string
-     */
-    public function getLdapCharset(): string
-    {
-        return $this->ldapCharset;
-    }
-
-    /**
-     * @return int
-     * @deprecated
-     */
-    public function getLdapProtocol(): int
-    {
-        return $this->ldapProtocol;
-    }
-
-    /**
-     * @return string
-     */
-    public function getLdapHost(): string
-    {
-        return $this->ldapHost;
-    }
-
-    /**
-     * @return int
-     */
-    public function getLdapPort(): int
-    {
-        return $this->ldapPort;
-    }
-
-    /**
-     * @return bool
-     */
-    public function isLdapTls(): bool
-    {
-        return $this->ldapTls;
-    }
-
-    /**
-     * @return bool
-     */
-    public function isLdapSsl(): bool
-    {
-        return $this->ldapSsl;
-    }
-
-    /**
-     * @return bool
-     */
-    public function isLdapTlsReqcert(): bool
-    {
-        return $this->ldapTlsReqcert;
-    }
-
-    /**
-     * @param bool $ldapTlsReqcert
-     * @return $this
-     */
-    public function setLdapTlsReqcert(bool $ldapTlsReqcert): self
-    {
-        $this->ldapTlsReqcert = $ldapTlsReqcert;
-        return $this;
-    }
-
-    /**
-     * @return string
-     */
-    public function getLdapBindDn(): string
-    {
-        return $this->ldapBindDn;
-    }
-
-    /**
-     * @return string
-     */
-    public function getLdapPassword(): string
-    {
-        return $this->ldapPassword;
-    }
-
-    /**
-     * @return int
-     */
-    public function getGroupMembership(): int
-    {
-        return $this->groupMembership;
-    }
-
-    /**
-     * @return string
-     */
-    public function getBackendUsersBaseDn(): string
-    {
-        return $this->backendUsersBaseDn;
-    }
-
-    /**
-     * @return string
-     */
-    public function getBackendUsersFilter(): string
-    {
-        return $this->backendUsersFilter;
-    }
-
-    /**
-     * @return string
-     */
-    public function getBackendUsersMapping(): string
-    {
-        return $this->backendUsersMapping;
-    }
-
-    /**
-     * @return string
-     */
-    public function getBackendGroupsBaseDn(): string
-    {
-        return $this->backendGroupsBaseDn;
-    }
-
-    /**
-     * @return string
-     */
-    public function getBackendGroupsFilter(): string
-    {
-        return $this->backendGroupsFilter;
-    }
-
-    /**
-     * @return string
-     */
-    public function getBackendGroupsMapping(): string
-    {
-        return $this->backendGroupsMapping;
-    }
-
-    /**
-     * @return \TYPO3\CMS\Extbase\Domain\Model\BackendUserGroup[]
-     */
-    public function getBackendGroupsRequired(): array
-    {
-        return $this->backendGroupsRequired;
-    }
-
-    /**
-     * @return \TYPO3\CMS\Extbase\Domain\Model\BackendUserGroup[]
-     */
-    public function getBackendGroupsAssigned(): array
-    {
-        return $this->backendGroupsAssigned;
-    }
-
-    /**
-     * @return \TYPO3\CMS\Extbase\Domain\Model\BackendUserGroup[]
-     */
-    public function getBackendGroupsAdministrator(): array
-    {
-        return $this->backendGroupsAdministrator;
-    }
-
-    /**
-     * @return string
-     */
-    public function getFrontendUsersBaseDn(): string
-    {
-        return $this->frontendUsersBaseDn;
-    }
-
-    /**
-     * @return string
-     */
-    public function getFrontendUsersFilter(): string
-    {
-        return $this->frontendUsersFilter;
-    }
-
-    /**
-     * @return string
-     */
-    public function getFrontendUsersMapping(): string
-    {
-        return $this->frontendUsersMapping;
-    }
-
-    /**
-     * @return string
-     */
-    public function getFrontendGroupsBaseDn(): string
-    {
-        return $this->frontendGroupsBaseDn;
-    }
-
-    /**
-     * @return string
-     */
-    public function getFrontendGroupsFilter(): string
-    {
-        return $this->frontendGroupsFilter;
-    }
-
-    /**
-     * @return string
-     */
-    public function getFrontendGroupsMapping(): string
-    {
-        return $this->frontendGroupsMapping;
-    }
-
-    /**
-     * @return \TYPO3\CMS\Extbase\Domain\Model\FrontendUserGroup[]
-     */
-    public function getFrontendGroupsRequired(): array
-    {
-        return $this->frontendGroupsRequired;
-    }
-
-    /**
-     * @return \TYPO3\CMS\Extbase\Domain\Model\FrontendUserGroup[]
-     */
-    public function getFrontendGroupsAssigned(): array
-    {
-        return $this->frontendGroupsAssigned;
-    }
-
-    public function getBackendUsersImportBaseDn(): ?string
-    {
-        return $this->backendUsersImportBaseDn;
-    }
-
-    public function getBackendUsersImportFilter(): ?string
-    {
-        return $this->backendUsersImportFilter;
-    }
-
-    public function getBackendUsersFollowAlias(): ?bool
-    {
-        return $this->backendUsersFollowAlias;
     }
 
     /**
